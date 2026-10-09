@@ -527,7 +527,7 @@ Row 'HKU'  'Software\Microsoft\Windows\CurrentVersion\Privacy'    'TailoredExper
 
 ## License
 
-MIT - `LICENSE'The software is provided "as is", without warranty of any kind; you are responsible for what you run on your own systems.
+MIT - 'LICENSE'
 
 ## References
 
