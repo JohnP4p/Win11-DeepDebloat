@@ -527,7 +527,7 @@ Row 'HKU'  'Software\Microsoft\Windows\CurrentVersion\Privacy'    'TailoredExper
 
 ## License
 
-MIT - LICENSE
+MIT — see [LICENSE](LICENSE).
 
 ## References
 
