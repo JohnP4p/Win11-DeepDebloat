@@ -5,11 +5,11 @@
 ![PowerShell 5.1](https://img.shields.io/badge/PowerShell-5.1-blue)
 ![Windows 11](https://img.shields.io/badge/Windows-11_build_22000%2B-0078D4)
 ![Single file](https://img.shields.io/badge/single%20file-no%20downloads-success)
-![Status](https://img.shields.io/badge/status-v1.0.0-informational)
+![Status](https://img.shields.io/badge/status-v1.0.2-informational)
 
 > [!WARNING]
 > **Read this first.** This tool changes many system settings, removes apps and deletes files.
-> v1.0.0 has been written and statically reviewed (syntax balance, ASCII-only, function cross-references) but has **not yet been validated end-to-end on every Windows 11 build**.
+> v1.0.2 has been written and statically reviewed (syntax balance, ASCII-only, function cross-references) but has **not yet been validated end-to-end on every Windows 11 build**.
 > Treat your first run as a test: use `-DryRun`, a virtual machine, or at least a System Restore point (created automatically). Do **not** run it on a work or school managed PC.
 
 ---
@@ -76,13 +76,16 @@ Win11-DeepDebloat works differently:
 # 1. Save Win11-DeepDebloat.ps1 to a local folder (for example C:\Tools), then unblock it
 Unblock-File .\Win11-DeepDebloat.ps1
 
-# 2. Preview: reads the system, changes nothing (-Defaults skips the questions)
+# 2. Self-test: proves this session can really see and change the system (changes nothing)
+powershell.exe -ExecutionPolicy Bypass -File .\Win11-DeepDebloat.ps1 -SelfTest
+
+# 3. Preview: reads the system, changes nothing (-Defaults skips the questions)
 powershell.exe -ExecutionPolicy Bypass -File .\Win11-DeepDebloat.ps1 -DryRun -Defaults
 
-# 3. Run it for real: questions -> plan -> type YES -> restore point -> apply + verify -> report
+# 4. Run it for real: questions -> plan -> type YES -> restore point -> apply + verify -> report
 powershell.exe -ExecutionPolicy Bypass -File .\Win11-DeepDebloat.ps1
 
-# 4. Reboot, then confirm that everything stuck
+# 5. Reboot, then confirm that everything stuck
 powershell.exe -ExecutionPolicy Bypass -File .\Win11-DeepDebloat.ps1 -VerifyOnly
 ```
 
@@ -100,7 +103,10 @@ Run it from a normal console; the script opens an elevated window if it is not a
 | `-Yes` | Skip the final "type YES" confirmation (unattended use). |
 | `-NoRestorePoint` | Do not create a System Restore point first. |
 | `-SkipCleanup` | Skip file clean-up and the component-store cleanup (also hides the hibernation and `/ResetBase` questions). Use it if you still need crash dumps or `Windows.old`. |
+| `-SelfTest` | Check that this PowerShell session can really see and change the system (Store package inventory, services, scheduled tasks, registry write, a real file-deletion test, firewall and Defender cmdlets) and stop. Nothing is changed. The same checks run at the start of every real run, which aborts if a critical one fails. |
 | `-StateDir <path>` | Where baseline, choices, logs and reports are kept. Default: `%ProgramData%\Win11DeepDebloat`. |
+
+`-Relaunched` is added automatically when the script restarts itself elevated in 64-bit Windows PowerShell 5.1; do not pass it yourself.
 
 Exit codes: `0` = finished, no `FAIL`; `1` = at least one item did not verify (`FAIL`); `2` = fatal error (nothing more was attempted).
 
@@ -128,7 +134,7 @@ Exit codes: `0` = finished, no `FAIL`; `1` = at least one item did not verify (`
 
 ## Walkthrough
 
-1. **Preflight** - Windows 11 build, edition notes (see [Limits](#limits---what-this-tool-cannot-do)), MDM warning, pending-reboot detection, free disk space, Defender Tamper Protection state.
+1. **Preflight and self-test** - Windows 11 build, edition notes (see [Limits](#limits---what-this-tool-cannot-do)), MDM warning, pending-reboot detection, free disk space, Defender Tamper Protection state; then the environment self-test (64-bit elevated Windows PowerShell 5.1, Full Language mode, Store package / service / task inventories not empty, registry write, real file deletion). If a critical check fails the run stops before anything is changed.
 2. **Scan** - installed Store apps, provisioned apps, Windows capabilities and optional features are read once (this can take a minute).
 3. **Questions** - only for items that are present. At each prompt:
    - `y` remove / disable, `n` keep, **Enter** accepts the default shown in capitals (`[Y/n]` means default yes, `[y/N]` default no)
@@ -331,6 +337,8 @@ An item is asked **only if it is present**. *Default* is what Enter does; `-Defa
 | Edge / OneDrive / Office / Teams | Uninstall entries, executables and processes are gone |
 | Component store | DISM exit code is 0 or 3010 (reboot required) |
 
+Before anything is changed, the **self-test** proves the session is able to do the work: a script that cannot see the Store packages or scheduled tasks would otherwise report everything as "already absent". The final report also prints what was **actually changed** in the run (values, services, tasks, packages, folders) and warns when that number is zero.
+
 Result states:
 
 - **PASS** - the desired state was confirmed. Items that were already in the desired state are counted separately ("already absent/off") and summarised in one line.
@@ -374,6 +382,7 @@ Win11DeepDebloat\
   choices.json                      your answers from the last run - used by -Config / -VerifyOnly
   logs\
     run-<timestamp>.log             full log of the run
+    transcript-<timestamp>.txt      everything that appeared in the console, including errors
     removed-apps-<timestamp>.txt    full names of the Store packages that were removed
   reports\
     report-<timestamp>.json         every checked item with status and detail
@@ -445,6 +454,23 @@ Start it with `-ExecutionPolicy Bypass` as shown in [Quick start](#quick-start);
 **Antivirus or SmartScreen warns about the script.**
 It changes system settings, removes software and edits policies, which can trigger heuristics. Read the source (it is one plain-text file) and run it from a local folder you control.
 
+**It finished, but nothing was removed (or everything says "already absent").**
+1. Run `.\Win11-DeepDebloat.ps1 -SelfTest`. If a line says the Store package inventory is empty, the session cannot see your apps (for example a PowerShell 7 module path, a 32-bit shell or a restricted language mode). Start *Windows PowerShell 5.1* as administrator and run the script again.
+2. Read the last lines of the run: `Cancelled: you typed ... instead of YES` or `no restore point ... you chose not to continue` mean nothing was changed on purpose (use `-NoRestorePoint` if System Restore is unavailable).
+3. Look at `Actually changed in this run: ...` in the report. Zero means the PC was already clean for everything the plan contained.
+4. Send `logs\transcript-<timestamp>.txt` and `reports\report-<timestamp>.csv` from the state directory when asking for help.
+
+**PowerShell reports syntax / parse errors.**
+Ask PowerShell's own parser for the exact messages and line numbers (no output means the file parses cleanly):
+
+```powershell
+$t = $null; $e = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\Win11-DeepDebloat.ps1).Path, [ref]$t, [ref]$e)
+if ($e.Count -eq 0) { 'No parse errors' } else { $e | Select-Object -First 10 | ForEach-Object { '{0}:{1}  {2}' -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message } }
+```
+
+Make sure the file was saved unmodified (plain text, not copied from a web preview) and open an issue with the first lines of that output. Editor "problems" from PSScriptAnalyzer are style warnings, not parse errors.
+
 **Can I run it on PowerShell 7?**
 It must run in Windows PowerShell 5.1 (the Appx, DISM and scheduled-task modules are used). If you start it from PowerShell 7 it relaunches itself in 5.1 automatically.
 
@@ -503,7 +529,7 @@ Row 'HKU'  'Software\Microsoft\Windows\CurrentVersion\Privacy'    'TailoredExper
 2. `-DryRun -Defaults`, then a real run, then reboot.
 3. `-VerifyOnly` must report no `FAIL`.
 4. `-Restore`, reboot, `-VerifyOnly` must now report the changes as reverted.
-5. Optional: `Invoke-ScriptAnalyzer -Path .\Win11-DeepDebloat.ps1` (`Write-Host` findings are intentional - the script is interactive).
+5. Optional: `Invoke-ScriptAnalyzer -Path .\Win11-DeepDebloat.ps1`. The script carries its own suppressions for intentional patterns (interactive `Write-Host`, best-effort empty `catch` blocks, one shared signature for task handlers); anything else it reports deserves a look.
 
 **Ideas / roadmap**
 
@@ -521,13 +547,23 @@ Row 'HKU'  'Software\Microsoft\Windows\CurrentVersion\Privacy'    'TailoredExper
 
 ## Changelog
 
+### 1.0.2
+
+- Fail loudly instead of silently: environment self-test (`-SelfTest`, also run before every real run) that proves the session can see Store packages, services and tasks, write the registry and really delete files; empty inventories are reported; the script relaunches itself in a clean 64-bit Windows PowerShell 5.1 session (inbox module path) when needed.
+- Report now states what was actually changed and warns when nothing was; registry writes are skipped (and counted as "already set") when the value is already correct; removed packages and cleaned sizes are shown per item.
+- `yes` in any case is accepted at the confirmation prompt; cancellation messages say exactly why; a console transcript is saved; the elevated window stays open until you press Enter.
+
+### 1.0.1
+
+- Hardening after the first field test: simpler constructs (no `${env:ProgramFiles(x86)}` variable form, plain `if` chain in the prompt loop, explicit string conversion of handler names) and PSScriptAnalyzer suppressions for intentional patterns, so editors no longer flag the task-handler section with unused-parameter warnings.
+
 ### 1.0.0
 
 - Initial release: task engine with per-task verification, baseline and `-Restore`, `-DryRun`, `-VerifyOnly`, saved choices (`-Config`), per-user registry handling for every profile and the Default profile, 40 optional catalog items plus promo/OEM detection, ETW AutoLogger neutralisation, firewall blocks for telemetry binaries, Defender sample-sharing off, Recall / Click to Do / Copilot policies, file clean-up with before/after verification, JSON/CSV reports.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE)
 
 ## References
 
