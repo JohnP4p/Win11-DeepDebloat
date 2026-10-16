@@ -9,8 +9,8 @@
 
 > [!WARNING]
 > **Read this first.** This tool changes many system settings, removes apps and deletes files.
-> v1.0.2 has been written and statically reviewed (syntax balance, ASCII-only, function cross-references) but has **not yet been validated end-to-end on every Windows 11 build**.
-> Treat your first run as a test: use `-DryRun`, a virtual machine, or at least a System Restore point (created automatically). Do **not** run it on a work or school managed PC.
+> v1.0.2 has been written and statically reviewed (syntax balance, ASCII-only, function cross-references) and **has been validated end-to-end on a QubesOS HVM Windows 11 home build**.
+> For your safety,treat your first run as a test: use `-DryRun`, a virtual machine, or at least a System Restore point (created automatically). Do **not** run it on a work or school managed PC.
 
 ---
 
